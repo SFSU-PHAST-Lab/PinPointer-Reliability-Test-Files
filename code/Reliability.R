@@ -1,0 +1,168 @@
+# Packages ---------------------------------------------------------------------
+if(!suppressWarnings(require(dplyr))) install.packages("dplyr")
+if(!suppressWarnings(require(irr))) install.packages("irr")
+if(!suppressWarnings(require(ggplot2))) install.packages("ggplot2")
+
+# Import and clean the data -------------------------------------------------------------------------------------
+
+data_inter <-  read.csv("data/Reliability_spreadsheet.csv", header = TRUE, 
+                  sep = ",", fileEncoding = "UTF-8-BOM")
+
+data_intra <-  read.csv("data/IntraraterICC.csv", header = TRUE, 
+                        sep = ",", fileEncoding = "UTF-8-BOM")
+
+data_ruler <-  read.csv("data/RulerICC.csv", header = TRUE, 
+                        sep = ",", fileEncoding = "UTF-8-BOM")
+
+# Define the type of variable, creating the variable block, contrast coding zone, and grand-mean centering mindset:
+data_inter <-  data_inter %>% 
+  mutate(A1 = as.numeric(A1),
+         A2 = as.numeric(A2),
+         A3 = as.numeric(A3),
+         A4 = as.numeric(A4))
+
+data_intra <-  data_intra %>% 
+  mutate(A3_t1 = as.numeric(A3_t1),
+         A3_t2 = as.numeric(A3_t2))
+
+data_ruler <-  data_ruler %>% 
+  mutate(Ruler = as.numeric(Ruler),
+         PinPointer = as.numeric(PinPointer))
+
+# Inspect data
+summary(data_inter)
+summary(data_intra)
+summary(data_ruler)
+
+# Intraclass correlation among 4 raters with continuous measures ---------------------------------------------------
+
+# Both images and raters are considered random-effects (thus, twoway), and we expect to use a single measurement
+# per image in experiments, rather than the average between raters (thus, single). We'll calculate both the
+# absolute agreement (which considers that the systematic differences between raters is relevant), and the
+# consistency between raters (which considers systematic differences irrelevant).
+
+# Absolute agreement
+ICC_inter_agree <- icc(data_inter, model = "twoway", 
+  type = "agreement", unit = "single")
+ICC_inter_agree  # k = 1 (95%CI = [0.999; 1]), p < .001
+
+# Consistency
+ICC_inter_cons <- icc(data_inter, model = "twoway", 
+                         type = "consistency", unit = "single")
+ICC_inter_cons # k = 1 (95%CI = [1; 1]), p = .0
+
+# Inter-rater descriptives---------------------------------------------
+# Creating a variable that captures intra-trial variation among raters
+data_inter <- data_inter %>%
+  mutate (variability = pmax(A1, A2, A3, A4) - pmin(A1, A2, A3, A4))
+
+#min, max, and mean intra-trial variability
+summary(data_inter$variability)
+#min = 0.05, max = 2.08, mean = 0.49
+
+
+#Plotting this relationship
+Fig <- ggplot(data_inter, aes(x = A3, y = variability)) +
+  geom_point() +
+  scale_x_continuous(name = "Radial Error (cm)", limits = c(0, 75), breaks = seq(0, 75, by = 15)) +
+  scale_y_continuous(name = "Inter-Rater Variability (cm)", limits = c(0, 2.1), breaks = seq(0, 2.1, by = 0.3)) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),  # Remove major gridlines
+    panel.grid.minor = element_blank(),  # Remove minor gridlines
+    panel.border = element_blank(),      # Remove border
+    axis.line = element_line(color = "black")  # Keep axis lines
+  )
+
+Fig
+
+#checking if larger errors tend to have higher interrater variabilities
+cor.test(data_inter$A1, data_inter$variability, method = "pearson")
+cor.test(data_inter$A2, data_inter$variability, method = "pearson")
+cor.test(data_inter$A3, data_inter$variability, method = "pearson")
+cor.test(data_inter$A4, data_inter$variability, method = "pearson")
+
+
+# Intra-rater Intraclass Correlation  ---------------------------------------------------
+
+# Both images and rater are considered random-effects (thus, twoway), and we expect to use a single measurement
+# per image in experiments, rather than the average between two rates (thus, single). We'll calculate the
+# absolute agreement (which considers that the systematic differences between trials is relevant)
+
+# Absolute agreement
+ICC_intra_agree <- icc(data_intra, model = "twoway", 
+                         type = "agreement", unit = "single")
+ICC_intra_agree  # k = 0.999 (95%CI = [0.987; 1]), p < .001
+
+# Intra-rater descriptives---------------------------------------------
+# Creating a variable that captures intra-trial variation among raters
+data_intra <- data_intra %>%
+  mutate (variability = pmax(A3_t1, A3_t2) - pmin(A3_t1, A3_t2))
+
+#min, max, and mean intra-trial variability by the same rater
+summary(data_intra$variability)
+#min = 0.00, max = 1.47, mean = 0.43
+
+
+Fig2 <- ggplot(data_intra, aes(x = A3_t1, y = variability)) +
+  geom_point() +
+  scale_x_continuous(name = "Radial Error (cm)", limits = c(0, 75), breaks = seq(0, 75, by = 15)) +
+  scale_y_continuous(name = "Inter-Rater Variability (cm)", limits = c(0, 2.1), breaks = seq(0, 2.1, by = 0.3)) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),  # Remove major gridlines
+    panel.grid.minor = element_blank(),  # Remove minor gridlines
+    panel.border = element_blank(),      # Remove border
+    axis.line = element_line(color = "black")  # Keep axis lines
+  )
+
+Fig2
+
+#checking if larger errors tend to have higher intra-rater variabilities
+cor.test(data_intra$A3_t1, data_intra$variability, method = "pearson")
+
+# Intraclass correlation Ruler vs. PinPointer ---------------------------------------------------
+# Absolute agreement
+ICC_ruler_agree <- icc(data_ruler, model = "twoway", 
+                       type = "agreement", unit = "single")
+ICC_ruler_agree  # k(125) = 1 (95%CI = [1; 1]), p < .001
+
+Fig3 <- ggplot(data_ruler, aes(x = Ruler, y = PinPointer)) +
+  geom_point() +
+  scale_x_continuous(name = "Ruler measurement (cm)", limits = c(0, 130), breaks = seq(0, 130, by = 5)) +
+  scale_y_continuous(name = "PinPointer (cm)", limits = c(0, 130), breaks = seq(0, 130, by = 5)) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),  # Remove major gridlines
+    panel.grid.minor = element_blank(),  # Remove minor gridlines
+    panel.border = element_blank(),      # Remove border
+    axis.line = element_line(color = "black")  # Keep axis lines
+  )
+
+Fig3
+
+# Creating a variable that captures the difference between ruler measurement and PinPointer measurement
+data_ruler <- data_ruler %>%
+  mutate (Difference = abs(Ruler - PinPointer))
+
+summary(data_ruler) #mean = 0.17, range = [0; 0.78]
+
+#checking correlation between ruler measurement and difference
+cor.test(data_ruler$Ruler, data_ruler$Difference, method = "pearson") #r(123) = .56 (95% CI = [.428; .671]), p <.001
+
+# Plotting this correlation
+tiff("product/Figure3.tiff", units = "in", width=10, height=5, res = 600)
+Fig4 <- ggplot(data_ruler, aes(x = Ruler, y = Difference)) +
+  geom_point() +
+  scale_x_continuous(name = "Ruler measurement (cm)", limits = c(0, 130), breaks = seq(0, 130, by = 5)) +
+  scale_y_continuous(name = "Absolute Difference between PinPointer and Ruler (cm)", limits = c(0, 2), breaks = seq(0, 2, by = 0.2)) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),      
+    axis.line = element_line(color = "black")  
+  )
+
+Fig4
+dev.off()
